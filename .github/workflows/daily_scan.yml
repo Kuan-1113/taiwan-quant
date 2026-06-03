@@ -1,0 +1,39 @@
+name: 每日台股掃描 17:00
+
+on:
+  schedule:
+    - cron: '0 9 * * 1-5'   # UTC 09:00 = 台灣 17:00，週一到週五
+  workflow_dispatch:          # 允許手動觸發（測試用）
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scan
+        env:
+          DISCORD_WEBHOOK_SIGNAL: ${{ secrets.DISCORD_WEBHOOK_SIGNAL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SCAN_MARKET: both
+          MAX_WORKERS: "20"
+          MIN_AVG_VOLUME: "1000"
+          SCHEDULE_TIME: "17:00"
+          TIMEZONE: Asia/Taipei
+          ADX_TREND_THRESHOLD: "25"
+          SCORE_THREE_STAR: "80"
+          SCORE_TWO_STAR: "60"
+          SCORE_ONE_STAR: "40"
+        run: python -X utf8 main.py --now
