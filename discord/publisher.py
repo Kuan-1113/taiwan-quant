@@ -2,6 +2,7 @@
 Discord Publisher — 完整版（三星個股分析 + 族群細分 + AI 深度總結）
 """
 
+import math
 import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -15,12 +16,18 @@ def _now_str() -> str:
     return datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m-%d %H:%M")
 
 
+def _fmt_price(price: float) -> str:
+    """價格格式化，處理 nan / 0"""
+    if price and not math.isnan(price) and price > 0:
+        return f"＄{price:.0f}"
+    return "價格待更新"
+
+
 def _signal_line(v: VoteResult, indent: str = "") -> str:
-    code    = v.ticker.replace(".TW", "").replace(".TWO", "")
-    name    = get_name(v.ticker)
-    price   = f"＄{v.current_price:.0f}" if v.current_price > 0 else ""
-    sigs    = " ＋ ".join(v.top_signals[:3])
-    adx_str = f"ADX{v.adx:.0f}" if v.adx > 0 else ""
+    code        = v.ticker.replace(".TW", "").replace(".TWO", "")
+    name        = get_name(v.ticker)
+    price_str   = _fmt_price(v.current_price)
+    sigs        = " ＋ ".join(v.top_signals[:3])
     chips_badge = ""
     if v.has_chips:
         inst = v.agent_scores.get("InstitutionalAgent", 50)
@@ -28,16 +35,28 @@ def _signal_line(v: VoteResult, indent: str = "") -> str:
             chips_badge = " 🏦"
         elif inst <= 30:
             chips_badge = " 🔴"
-    return f"{indent}• **{code} {name}**{chips_badge} {price}　`{v.final_score:.0f}分`　{sigs}"
+    return f"{indent}• **{code} {name}**{chips_badge} {price_str}　`{v.final_score:.0f}分`　{sigs}"
+
+
+def _fmt_news(news_items: list[dict]) -> list[str]:
+    """格式化新聞，過濾空標題，無新聞顯示暫無"""
+    valid = [n for n in news_items if n.get("title", "").strip() and n.get("publisher", "").strip()]
+    lines = ["> 📰 **近期新聞**"]
+    if valid:
+        for n in valid[:3]:
+            lines.append(f"> • {n['title']}（{n['publisher']}）")
+    else:
+        lines.append("> • 暫無新聞資訊")
+    return lines
 
 
 def send_signals(
-    three_star:      list[VoteResult],
-    two_star:        list[VoteResult],
-    one_star:        list[VoteResult],
-    adx_market:      float = 0.0,
-    sector_ranking:  list[tuple[str, float]] | None = None,
-    ai_summary:      str = "",
+    three_star:          list[VoteResult],
+    two_star:            list[VoteResult],
+    one_star:            list[VoteResult],
+    adx_market:          float = 0.0,
+    sector_ranking:      list[tuple[str, float]] | None = None,
+    ai_summary:          str = "",
     three_star_analyses: list[dict] | None = None,
 ):
     if not DISCORD_WEBHOOK_SIGNAL:
@@ -51,7 +70,7 @@ def send_signals(
     messages  = []
 
     # ════════════════════════════════
-    # 訊息 1：標題總覽
+    # 訊息 1：標題 + 三星清單
     # ════════════════════════════════
     m1 = [
         f"# 📊 今日策略明牌　{now}",
@@ -80,19 +99,19 @@ def send_signals(
             "",
         ]
         for item in three_star_analyses:
-            # 標題列
-            m2.append(f"### {item['emoji']} {item['code']} {item['name']}　`{item['sector']}`")
-            m2.append(f"> ＄{item['price']:.0f}　評分 `{item['score']:.0f}/100`　ADX `{item['adx']:.0f}`")
+            price_str = _fmt_price(item.get("price", 0))
 
-            # 公司定位
-            if item.get("company"):
-                m2.append(f"> 📍 {item['company']}")
+            # 標頭
+            m2.append(f"### {item['emoji']} **{item['code']} {item['name']}**　`{item['sector']}`")
+            m2.append(f"> {price_str}　評分 `{item['score']:.0f}/100`　ADX `{item['adx']:.0f}`")
 
-            # 近期新聞
-            if item.get("news"):
-                m2.append("> **📰 近期新聞**")
-                for n in item["news"][:3]:
-                    m2.append(f"> • {n['title']}（{n['publisher']}）")
+            # 公司定位（只顯示中文描述，英文略過）
+            company = item.get("company", "")
+            if company and not _is_mostly_english(company):
+                m2.append(f"> 📍 {company}")
+
+            # 近期新聞（統一格式，無新聞顯示暫無）
+            m2.extend(_fmt_news(item.get("news", [])))
 
             m2.append("")
             m2.append(item["analysis"])
@@ -110,19 +129,17 @@ def send_signals(
         "> 同時觸發多個技術＋籌碼指標，中短期動能延續機率高",
         "",
     ]
-    # 按細分族群分組
     sector_groups: dict[str, list[VoteResult]] = {}
     for v in two_star:
         s = get_sector(v.ticker)
         sector_groups.setdefault(s, []).append(v)
 
-    # 先排 AI 和低軌衛星，再排其他
     priority = ["AI", "低軌衛星", "半導體"]
     def sort_key(item):
-        s, _ = item
+        s, items = item
         g = SECTOR_GROUP.get(s, "其他")
         idx = priority.index(g) if g in priority else len(priority)
-        return (idx, -len(_))
+        return (idx, -len(items))
 
     for sector, items in sorted(sector_groups.items(), key=sort_key):
         emoji = get_sector_emoji(sector)
@@ -147,11 +164,10 @@ def send_signals(
 
     if sector_ranking:
         m4.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        m4.append("## 📊 族群強弱排行（細分）")
+        m4.append("## 📊 族群強弱排行")
         m4.append("")
-        # 主族群聚合顯示
-        group_scores: dict[str, list[float]] = {}
-        group_sectors: dict[str, list[str]]  = {}
+        group_scores:  dict[str, list[float]] = {}
+        group_sectors: dict[str, list[str]]   = {}
         for sector, score in sector_ranking:
             group = SECTOR_GROUP.get(sector, sector)
             group_scores.setdefault(group, []).append(score)
@@ -162,9 +178,9 @@ def send_signals(
         )
         for rank, (group, avg) in enumerate(group_avg[:8], 1):
             bar    = "🔥" if avg >= 70 else ("📈" if avg >= 60 else "➡️")
-            detail = "、".join(group_sectors[group][:3])
+            detail = "　".join(group_sectors[group][:3])
             m4.append(f"`{rank}.` {bar} **{group}** `{avg:.0f}分`")
-            m4.append(f"     └ {detail}")
+            m4.append(f"　　　└ {detail}")
     messages.append("\n".join(m4))
 
     # ════════════════════════════════
@@ -179,10 +195,18 @@ def send_signals(
         ]
         messages.append("\n".join(m5))
 
-    # 逐一發送
     for msg in messages:
         _send(msg)
     print(f"[OK] Discord 發送完成（{len(messages)} 則，共 {total} 筆信號）")
+
+
+def _is_mostly_english(text: str) -> bool:
+    """判斷文字是否主要為英文（超過 60% ASCII 字母）"""
+    if not text:
+        return False
+    alpha = sum(1 for c in text if c.isalpha())
+    ascii_alpha = sum(1 for c in text if c.isascii() and c.isalpha())
+    return alpha > 0 and ascii_alpha / alpha > 0.6
 
 
 def _send(text: str):

@@ -17,6 +17,34 @@ def _client():
     return anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 
+def _get_chinese_description(code: str, name: str, sector: str, fund_data: dict, client) -> str:
+    """
+    取得中文公司定位描述
+    優先從 yfinance 翻譯，若無資料則用 Claude 根據代號/族群生成
+    """
+    raw_desc = fund_data.get("description", "")
+    industry = fund_data.get("industry", "")
+
+    # 若已有中文描述直接回傳
+    if raw_desc:
+        ascii_ratio = sum(1 for c in raw_desc if c.isascii() and c.isalpha()) / max(len(raw_desc), 1)
+        if ascii_ratio < 0.4:
+            return raw_desc[:100]  # 已是中文
+
+    # 用 Claude 生成/翻譯中文定位（一句話）
+    try:
+        hint = f"英文描述：{raw_desc[:200]}" if raw_desc else f"產業：{industry or sector}"
+        msg = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=80,
+            messages=[{"role": "user", "content":
+                f"請用一句繁體中文（30字內）描述台股上市公司「{code} {name}」的核心業務定位。{hint}。只輸出那一句話，不要任何其他文字。"}],
+        )
+        return msg.content[0].text.strip()
+    except Exception:
+        return f"{name}，{sector}產業"
+
+
 # ──────────────────────────────────────────
 # 三星個股深度分析（含公司資訊 + 新聞）
 # ──────────────────────────────────────────
@@ -47,8 +75,8 @@ def analyze_three_star_stocks(
         emoji    = get_sector_emoji(sector)
         fund_data = (fundamentals or {}).get(v.ticker, {})
 
-        # ── 公司簡介 ──
-        company_desc = get_company_description(fund_data, max_len=120)
+        # ── 公司簡介（強制中文化）──
+        company_desc = _get_chinese_description(code, name, sector, fund_data, client)
         industry_str = fund_data.get("industry", "") or fund_data.get("sector", "")
 
         # ── 近期新聞（最重要！） ──
