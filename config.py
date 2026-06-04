@@ -30,3 +30,8 @@ VOLUME_MULT          = float(os.getenv("VOLUME_MULT", "1.5"))           # 量能
 SCORE_THREE_STAR = float(os.getenv("SCORE_THREE_STAR", "80"))  # [***]
 SCORE_TWO_STAR   = float(os.getenv("SCORE_TWO_STAR", "60"))    # [**]
 SCORE_ONE_STAR   = float(os.getenv("SCORE_ONE_STAR", "40"))    # [*]
+
+# ── 信號追蹤門檻 ──────────────────────────────────────
+TRACKER_WIN_THRESHOLD  = float(os.getenv("TRACKER_WIN_THRESHOLD", "3.0"))   # 漲幅 > 3% 算 WIN
+TRACKER_LOSS_THRESHOLD = float(os.getenv("TRACKER_LOSS_THRESHOLD", "-3.0")) # 跌幅 < -3% 算 LOSS
+TRACKER_MIN_STARS      = int(os.getenv("TRACKER_MIN_STARS", "1"))           # 追蹤最低星級（1=全追蹤）

@@ -34,6 +34,7 @@ from agents import (
 )
 from discord.publisher      import send_signals
 from agents.summary_agent   import generate_summary, analyze_three_star_stocks
+from signal_tracker         import save_signals, backfill_results
 
 
 # ── Agent 單例 ──
@@ -209,6 +210,15 @@ def run_scan():
         ai_summary=ai_summary,
         three_star_analyses=three_star_analyses,
     )
+
+    # 16. 儲存信號到資料庫（依 TRACKER_MIN_STARS 設定，預設全星級）
+    print("[TRACKER] 儲存信號記錄...")
+    scan_date = datetime.now(ZoneInfo(TIMEZONE)).strftime("%Y-%m-%d")
+    save_signals(three_star + two_star + one_star, scan_date=scan_date)
+
+    # 17. 回補 5/10 天前的信號結果
+    print("[TRACKER] 回補歷史信號結果...")
+    backfill_results()
 
     print(f"[DONE] 完成 [{datetime.now(ZoneInfo(TIMEZONE)).strftime('%H:%M:%S')}]")
 
