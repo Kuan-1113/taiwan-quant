@@ -44,7 +44,8 @@ async def push_to_notebooklm(report_path: str) -> bool:
     try:
         from notebooklm import NotebookLMClient
     except ImportError:
-        print("[LM] notebooklm-py 未安裝，請執行：pip install notebooklm-py")
+        print("[LM] notebooklm-py 未安裝，跳過上傳")
+        print("[LM] 本機安裝：pip install \"notebooklm-py[browser]\"")
         return False
 
     print(f"[LM] 連線 NotebookLM...")

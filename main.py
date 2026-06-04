@@ -221,11 +221,14 @@ def run_scan():
     print("[TRACKER] 回補歷史信號結果...")
     backfill_results()
 
-    # 18. 每月 1 號自動推送月報到 NotebookLM
+    # 18. 每月 1 號自動推送月報到 NotebookLM（失敗不影響主流程）
     if datetime.now(ZoneInfo(TIMEZONE)).day == 1:
         print("[LM] 每月月報推送...")
-        import asyncio
-        asyncio.run(push_notebooklm())
+        try:
+            import asyncio
+            asyncio.run(push_notebooklm())
+        except Exception as e:
+            print(f"[LM] 月報推送失敗（不影響主流程）：{e}")
 
     print(f"[DONE] 完成 [{datetime.now(ZoneInfo(TIMEZONE)).strftime('%H:%M:%S')}]")
 

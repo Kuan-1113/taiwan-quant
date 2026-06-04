@@ -3,5 +3,6 @@ __pycache__/
 *.pyc
 *.pyo
 .DS_Store
-*.db
+# 排除暫時性 DB，但保留信號追蹤資料庫
 *.sqlite
+!taiwan_signals.db
