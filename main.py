@@ -35,6 +35,7 @@ from agents import (
 from discord.publisher      import send_signals
 from agents.summary_agent   import generate_summary, analyze_three_star_stocks
 from signal_tracker         import save_signals, backfill_results
+from auto_push_notebooklm   import run as push_notebooklm
 
 
 # ── Agent 單例 ──
@@ -219,6 +220,12 @@ def run_scan():
     # 17. 回補 5/10 天前的信號結果
     print("[TRACKER] 回補歷史信號結果...")
     backfill_results()
+
+    # 18. 每月 1 號自動推送月報到 NotebookLM
+    if datetime.now(ZoneInfo(TIMEZONE)).day == 1:
+        print("[LM] 每月月報推送...")
+        import asyncio
+        asyncio.run(push_notebooklm())
 
     print(f"[DONE] 完成 [{datetime.now(ZoneInfo(TIMEZONE)).strftime('%H:%M:%S')}]")
 
