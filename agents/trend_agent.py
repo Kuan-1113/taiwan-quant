@@ -81,7 +81,7 @@ class TrendAgent(BaseAgent):
         current_price = float(close.iloc[-1])
         if current_price > e10:
             score += 20
-            signals.append("站上EMA20")
+            signals.append("站上EMA10")
 
         # 3. ADX 趨勢強度 → 最高 40
         if adx >= 40:

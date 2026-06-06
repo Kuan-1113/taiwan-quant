@@ -150,9 +150,6 @@ def run_scan():
     first_pass: list[VoteResult] = []
     for ticker, df in market_data.items():
         try:
-            from agents.trend_agent    import TrendAgent as _T
-            from agents.momentum_agent import MomentumAgent as _M
-            from agents import aggregate
             r = aggregate(ticker, [
                 _trend.analyze(ticker, df),
                 _momentum.analyze(ticker, df),
